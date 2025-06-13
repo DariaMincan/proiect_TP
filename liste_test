@@ -1,0 +1,41 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "list.h"
+
+int main()
+{
+
+    int main() {
+        // Create a simple list: 1 -> 2 -> 3
+        NODE *head = malloc(sizeof(NODE));
+        head->data = 1;
+        head->next = malloc(sizeof(NODE));
+        head->next->data = 2;
+        head->next->next = malloc(sizeof(NODE));
+        head->next->next->data = 3;
+        head->next->next->next = NULL;
+    
+        delete_node(&head, 2); // Deletes node with data = 2
+    
+        // Print list
+        NODE *current = head;
+        while (current != NULL) {
+            printf("%d -> ", current->data);
+            current = current->next;
+        }
+        printf("NULL\n");
+    
+        // Free remaining nodes
+        while (head != NULL) {
+            NODE *tmp = head;
+            head = head->next;
+            free(tmp);
+        }
+    
+        return 0;
+    }
+    
+    return 0;
+}

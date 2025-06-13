@@ -2,21 +2,37 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <ncurses.h>
+#include <string.h>
+#include <stdbool.h>
 #include <time.h>
 #include "game.h"
 
+
 #define HIGHSCORE_FILE "highscore.txt"
+int current_grid_size = 4;
+bool has_won_2048=false;
+
 
 void run_game() {
     clear();    
     refresh();
     WINDOW *game_win;
-    int game_height = 20; 
-    int game_width = 60;
-    int start_y = (LINES - game_height) / 2; 
-    int start_x = (COLS - game_width) / 2;   
-    int score=0;
-    int highscore=load_highscore();
+    int moves = 0; 
+    int score = 0; 
+    int cell_width = 9;
+    int cell_height = 4;
+
+    int game_width = current_grid_size * cell_width + current_grid_size + 2; 
+    int game_height = current_grid_size * cell_height + current_grid_size + 2; 
+
+    if (game_width > COLS) game_width = COLS;
+    if (game_height > LINES) game_height = LINES;
+
+    int start_y = (LINES - game_height) / 2;
+    int start_x = (COLS - game_width) / 2;
+
+ 
+    int highscore = load_highscore();
 
     game_win = newwin(game_height, game_width, start_y, start_x);
     box(game_win, 0, 0);
@@ -24,53 +40,65 @@ void run_game() {
     wrefresh(game_win);
 
     
-    int board[4][4] = {0};
+    int board[current_grid_size][current_grid_size];
     init_board(board); 
+    
 
     while (1) {
         wclear(game_win);
         box(game_win, 0, 0);
         print_board(game_win, board); 
-        mvwprintw(game_win, game_height - 19, 2, "Scor: %d", score);
+        mvwprintw(game_win, 1, game_width - 15, "Moves: %d", moves);
+        mvwprintw(game_win, 1, 2, "Score: %d", score);
         mvwprintw(game_win, game_height - 2, 2, "Record: %d", highscore);
+        if(has_won_2048){
+            mvprintw(1, 20, "[AI ATINS 2048!]");
+        }
         wrefresh(game_win);
 
-        int ch = wgetch(game_win);
+        int ch = wgetch(game_win); 
         bool moved = false;
         switch (ch) {
             case KEY_UP:
-                moved = move_up(board,&score);
+                moved = move_up(board, &score);
                 break;
             case KEY_DOWN:
-                moved = move_down(board,&score);
+                moved = move_down(board, &score);
                 break;
             case KEY_LEFT:
-                moved = move_left(board,&score);
+                moved = move_left(board, &score);
                 break;
             case KEY_RIGHT:
-                moved = move_right(board,&score);
+                moved = move_right(board, &score);
                 break;
-            case 27:
+            case 27: 
                 delwin(game_win);
-                return;
+                return; 
         }
 
 
         if (moved) {
             add_new_tile(board);
+            moves++;
         }
 
 
         if (check_game_over(board)) {
-
-            clear();    
-            refresh();
-            mvwprintw(game_win, game_height / 2, game_width / 2 - 4, "Game Over!");
-            mvwprintw(game_win, game_height / 2 + 1, game_width / 2 - 15, "Apasati orice tasta pentru a iesi.");
-            wrefresh(game_win);
-            wrefresh(game_win);
-            wgetch(game_win); 
+   
+            wclear(game_win); 
+            box(game_win, 0, 0); 
             
+           
+            mvwprintw(game_win, game_height / 2, game_width / 2 - 5, "GAME OVER!");
+            wrefresh(game_win); 
+
+        
+            int ch_exit;
+            do {
+                ch_exit = wgetch(game_win); 
+            } while (ch_exit != 'q' && ch_exit != 'Q'); 
+            
+ 
             if (score > highscore) {
                 save_highscore(score);
             }
@@ -81,10 +109,10 @@ void run_game() {
     }
 }
 
-void init_board(int board[][4]) {
+void init_board(int board[][current_grid_size]) {
     
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
+    for (int i = 0; i < current_grid_size; i++) {
+        for (int j = 0; j < current_grid_size; j++) {
             board[i][j] = 0;
         }
     }
@@ -96,12 +124,12 @@ void init_board(int board[][4]) {
     for (int k = 0; k < 2; k++) {
         int row, col, value;
         do {
-            row = rand() % 4;
-            col = rand() % 4;
+            row = rand() % current_grid_size;
+            col = rand() % current_grid_size;
         } while (board[row][col] != 0); 
 
         
-        if (rand() % 5 == 0) {
+        if (rand() % 10 == 0) {
             value = 4;
         } else {
             value = 2;
@@ -109,66 +137,108 @@ void init_board(int board[][4]) {
         board[row][col] = value;
     }
 }
+void print_board(WINDOW *win, int board[][current_grid_size]) {
 
-void print_board(WINDOW *win, int board[][4]) {
-    int start_y = 3; 
-    int start_x = 3; 
+    int max_y, max_x;
+    getmaxyx(win, max_y, max_x);
 
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
+    int cell_height = max_y / current_grid_size;
+    int cell_width = max_x / current_grid_size;
+
+    if (cell_height < 3) {
+        cell_height = 3;
+    }
+    if (cell_width < 8) {
+        cell_width = 8;
+    }
+
+    int start_y = (max_y - (current_grid_size * cell_height)) / 2;
+    int start_x = (max_x - (current_grid_size * cell_width)) / 2;
+
+    for (int i = 0; i < current_grid_size; i++) {
+        for (int j = 0; j < current_grid_size; j++) {
             int value = board[i][j];
+            int y_pos = start_y + i * cell_height + cell_height / 2; 
+            int x_pos = start_x + j * cell_width + cell_width / 2;   
+
             if (has_colors() && value != 0) {
                 int color_pair = 0;
-               
-                if (value == 2) color_pair = 2;
-                else if (value == 4) color_pair = 4;
-                else if (value == 8) color_pair = 8;
-                else if (value == 16) color_pair = 16;
-                else if (value == 32) color_pair = 32;
-                else if (value == 64) color_pair = 64;
-                else if (value == 128) color_pair = 7; 
-                else if (value == 256) color_pair = 8;
-                else if (value == 512) color_pair = 9;
-                else if (value == 1024) color_pair = 10;
-                else if (value == 2048) color_pair = 11;
 
-                if (color_pair > 0) {
-                    wattron(win, COLOR_PAIR(color_pair));
-                    mvwprintw(win, start_y + i * 3, start_x + j * 8, "%8d", value);
-                    wattroff(win, COLOR_PAIR(color_pair));
+                if (value == 2)
+                    color_pair = 2;
+                else if (value == 4)
+                    color_pair = 4;
+                else if (value == 8)
+                    color_pair = 8;
+                else if (value == 16)
+                    color_pair = 16;
+                else if (value == 32)
+                    color_pair = 32;
+                else if (value == 64)
+                    color_pair = 64;
+                else if (value == 128)
+                    color_pair = 128;
+                else if (value == 256)
+                    color_pair = 8;
+                else if (value == 512)
+                    color_pair = 9;
+                else if (value == 1024)
+                    color_pair = 10;
+                else if (value == 2048)
+                    color_pair = 11;
+
+                    if (color_pair > 0) {
+                        wattron(win, COLOR_PAIR(color_pair));
+                        mvwprintw(win, y_pos, x_pos - (count_digits(value) / 2), "%d", value);
+                        wattroff(win, COLOR_PAIR(color_pair));
+                    } else {
+                        mvwprintw(win, y_pos, x_pos - (count_digits(value) / 2), "%d", value);
+                    }
                 } else {
-                    mvwprintw(win, start_y + i * 3, start_x + j * 8, "%8d", value);
+                    mvwprintw(win, y_pos, x_pos - (count_digits(value) / 2), "%d", value);
                 }
-            } else {
-                mvwprintw(win, start_y + i * 3, start_x + j * 8, "%8d", value);
             }
         }
+        wrefresh(win);
     }
-    wrefresh(win);
+    
+
+int count_digits(int n) {
+    if (n == 0)
+        return 1;
+    int count = 0;
+    while (n != 0) {
+        n /= 10;
+        count++;
+    }
+    return count;
 }
            
         
     
 
-bool check_game_over(int board[][4]) {
+bool check_game_over(int board[][current_grid_size]) {
     
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
+    for (int i = 0; i < current_grid_size; i++) {
+        for (int j = 0; j < current_grid_size; j++) {
             if (board[i][j] == 0) {
                 return false; 
+            }
+            if (board[i][j] == 2048) {
+                has_won_2048 = true;
             }
         }
     }
 
     
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
+    for (int i = 0; i < current_grid_size; i++) {
+        for (int j = 0; j < current_grid_size; j++) {
             
-            if (j < 3 && board[i][j] == board[i][j + 1]) {
+            if (j < current_grid_size-1 && board[i][j] == board[i][j + 1]) {
                 return false; 
             }
 
-            if (i < 3 && board[i][j] == board[i + 1][j]) {
+            if (i < current_grid_size-1 && board[i][j] == board[i + 1][j]) {
                 return false; 
             }
         }
@@ -178,13 +248,13 @@ bool check_game_over(int board[][4]) {
     return true;
 }
 
-void add_new_tile(int board[][4]) {
+void add_new_tile(int board[][current_grid_size]) {
 
     int value = (rand() % 10 == 0) ? 4 : 2;
 
     int empty_cells = 0;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
+    for (int i = 0; i < current_grid_size; i++) {
+        for (int j = 0; j < current_grid_size; j++) {
             if (board[i][j] == 0) {
                 empty_cells++;
             }
@@ -194,8 +264,8 @@ void add_new_tile(int board[][4]) {
     if (empty_cells > 0) {
         int random_index = rand() % empty_cells;
         int count = 0;
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < current_grid_size; i++) {
+            for (int j = 0; j < current_grid_size; j++) {
                 if (board[i][j] == 0) {
                     if (count == random_index) {
                         board[i][j] = value;
@@ -208,12 +278,11 @@ void add_new_tile(int board[][4]) {
     }
 }
 
-bool move_left(int board[][4],int *score) {
+bool move_left(int board[][current_grid_size],int *score) {
     bool moved = false;
-    for (int i = 0; i < 4; i++) {
-        // Elimină spațiile goale
+    for (int i = 0; i < current_grid_size; i++) {
         int non_zero_index = 0;
-        for (int j = 0; j < 4; j++) {
+        for (int j = 0; j < current_grid_size; j++) {
             if (board[i][j] != 0) {
                 board[i][non_zero_index++] = board[i][j];
                 if (j != non_zero_index - 1) {
@@ -223,13 +292,13 @@ bool move_left(int board[][4],int *score) {
             }
         }
 
-        for (int j = 0; j < 3; j++) {
+        for (int j = 0; j < current_grid_size-1; j++) {
             if (board[i][j] != 0 && board[i][j] == board[i][j + 1]) {
                 board[i][j] *= 2;
                 *score+=board[i][j];
                 board[i][j + 1] = 0;
                 moved = true;
-                for (int k = j + 2; k < 4; k++) {
+                for (int k = j + 2; k < current_grid_size; k++) {
                     board[i][k - 1] = board[i][k];
                     if (k - 1 != k) {
                         board[i][k] = 0;
@@ -241,11 +310,11 @@ bool move_left(int board[][4],int *score) {
     return moved;
 }
 
-bool move_right(int board[][4],int *score) {
+bool move_right(int board[][current_grid_size],int *score) {
     bool moved = false;
-    for (int i = 0; i < 4; i++) {
-        int non_zero_index = 3;
-        for (int j = 3; j >= 0; j--) {
+    for (int i = 0; i < current_grid_size; i++) {
+        int non_zero_index = current_grid_size-1;
+        for (int j = current_grid_size-1; j >= 0; j--) {
             if (board[i][j] != 0) {
                 board[i][non_zero_index--] = board[i][j];
                 if (j != non_zero_index + 1) {
@@ -254,7 +323,7 @@ bool move_right(int board[][4],int *score) {
                 }
             }
         }
-        for (int j = 3; j > 0; j--) {
+        for (int j = current_grid_size-1; j > 0; j--) {
             if (board[i][j] != 0 && board[i][j] == board[i][j - 1]) {
                 board[i][j] *= 2;
                 *score+=board[i][j];
@@ -272,11 +341,11 @@ bool move_right(int board[][4],int *score) {
     return moved;
 }
 
-bool move_up(int board[][4],int *score) {
+bool move_up(int board[][current_grid_size],int *score) {
     bool moved = false;
-    for (int j = 0; j < 4; j++) {
+    for (int j = 0; j < current_grid_size; j++) {
         int non_zero_index = 0;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < current_grid_size; i++) {
             if (board[i][j] != 0) {
                 board[non_zero_index++][j] = board[i][j];
                 if (i != non_zero_index - 1) {
@@ -285,13 +354,13 @@ bool move_up(int board[][4],int *score) {
                 }
             }
         }
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < current_grid_size-1; i++) {
             if (board[i][j] != 0 && board[i][j] == board[i + 1][j]) {
                 board[i][j] *= 2;
                 *score+=board[i][j];
                 board[i + 1][j] = 0;
                 moved = true;
-                for (int k = i + 2; k < 4; k++) {
+                for (int k = i + 2; k < current_grid_size; k++) {
                     board[k - 1][j] = board[k][j];
                     if (k - 1 != k) {
                         board[k][j] = 0;
@@ -303,11 +372,11 @@ bool move_up(int board[][4],int *score) {
     return moved;
 }
 
-bool move_down(int board[][4],int *score) {
+bool move_down(int board[][current_grid_size],int *score) {
     bool moved = false;
-    for (int j = 0; j < 4; j++) {
-        int non_zero_index = 3;
-        for (int i = 3; i >= 0; i--) {
+    for (int j = 0; j < current_grid_size; j++) {
+        int non_zero_index = current_grid_size-1;
+        for (int i = current_grid_size-1; i >= 0; i--) {
             if (board[i][j] != 0) {
                 board[non_zero_index--][j] = board[i][j];
                 if (i != non_zero_index + 1) {
@@ -316,7 +385,7 @@ bool move_down(int board[][4],int *score) {
                 }
             }
         }
-        for (int i = 3; i > 0; i--) {
+        for (int i = current_grid_size-1; i > 0; i--) {
             if (board[i][j] != 0 && board[i][j] == board[i - 1][j]) {
                 board[i][j] *= 2;
                 *score+=board[i][j];
@@ -351,3 +420,28 @@ void save_highscore(int highscore) {
         fclose(f);
     }
 }
+
+
+
+
+void setup_ncurses_colors() {
+    if (has_colors()) {
+        start_color();
+
+        init_pair(1, COLOR_WHITE, COLOR_BLACK);
+        init_pair(2, COLOR_CYAN, COLOR_BLACK);      
+        init_pair(4, COLOR_GREEN, COLOR_BLACK);     
+        init_pair(8, COLOR_YELLOW, COLOR_BLACK);    
+        init_pair(16, COLOR_BLUE, COLOR_BLACK);     
+        init_pair(32, COLOR_MAGENTA, COLOR_BLACK);  
+        init_pair(64, COLOR_RED, COLOR_BLACK);      
+        init_pair(128, COLOR_CYAN, COLOR_BLACK);    
+        init_pair(256, COLOR_GREEN, COLOR_BLACK);
+        init_pair(512, COLOR_YELLOW, COLOR_BLACK);
+        init_pair(1024, COLOR_BLUE, COLOR_BLACK);
+        init_pair(2048, COLOR_MAGENTA, COLOR_BLACK);
+    }
+}
+
+
+
