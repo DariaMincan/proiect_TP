@@ -3,9 +3,8 @@
 #include <stdlib.h>
 #include <ncurses.h>
 #include <time.h>
-#include "multiplayer.h"
-#include "game.h"
-#include "menu.h"
+#include <string.h>
+#include "multiplayer.h" 
 
 void run_multiplayer_game() {
     clear();
